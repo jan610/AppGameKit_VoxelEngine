@@ -211,7 +211,6 @@ do
 	print("Chunk Updating: "+str(ChunkUpdateSwitch))
 	print("Chunks in List: "+str(Voxel_LoadChunkList.length))
 	Print("Chunk Time: "+str(Voxel_DebugChunkTime#))
-	Print("Face Culling Time: "+str(Voxel_DebugFaceCullingTime#))
 	Print("Mesh Time: "+str(Voxel_DebugMeshTime#))
 	print("Noise Time: "+str(Voxel_DebugNoiseTime#))
 	print("Save Time: "+str(Voxel_DebugSaveTime#))
