@@ -1,7 +1,7 @@
 //~#import_plugin OpenSimplexNoise as Noise
 //~#include "threadnoise.agc"
 
-#constant FaceUp		0
+#constant FaceUp	0
 #constant FaceRight	1
 #constant FaceFront	2
 #constant FaceBack	3
@@ -617,13 +617,13 @@ function Voxel_UpdateBlockLight(World ref as WorldData,ChunkX,ChunkZ,LocalX,Loca
 			NeighbourChunkZ=trunc(NeighbourZ/Voxel_ChunkSize)
 			
 			if Voxel_IsTransparentBlock(World.Chunk[NeighbourChunkX,NeighbourChunkZ].BlockType[NeighbourLocalX,NeighbourY,NeighbourLocalZ])=1
-				CurrentBlockLight=Voxel_GetBlockLight(World,GlobalX,GlobalY,GlobalZ)
-				if CurrentBlockLight>World.Chunk[NeighbourChunkX,NeighbourChunkZ].BlockLight[NeighbourLocalX,NeighbourY,NeighbourLocalZ]+1
+				CurrentBlockLight=Voxel_GetBlockLight(World,GlobalX,GlobalY,GlobalZ)-1
+				if CurrentBlockLight>World.Chunk[NeighbourChunkX,NeighbourChunkZ].BlockLight[NeighbourLocalX,NeighbourY,NeighbourLocalZ]
 					FrontierTemp.X=NeighbourX
 					FrontierTemp.Y=NeighbourY
 					FrontierTemp.Z=NeighbourZ
 					Frontier.insert(FrontierTemp)
-					World.Chunk[NeighbourChunkX,NeighbourChunkZ].BlockLight[NeighbourLocalX,NeighbourY,NeighbourLocalZ]=CurrentBlockLight-1
+					World.Chunk[NeighbourChunkX,NeighbourChunkZ].BlockLight[NeighbourLocalX,NeighbourY,NeighbourLocalZ]=CurrentBlockLight
 					
 					Voxel_AddChunktoLoadList(NeighbourChunkX,NeighbourChunkZ)
 				endif
@@ -683,7 +683,7 @@ function Voxel_UpdateBlockShadow(World ref as WorldData,ChunkX,ChunkZ,LocalX,Loc
 						TempSpreadLight.X=NeighbourX
 						TempSpreadLight.Y=NeighbourY
 						TempSpreadLight.Z=NeighbourZ
-						TempSpreadLight.Light=NeighbourBlockLight
+						TempSpreadLight.Light=NeighbourBlockLight-2
 						Voxel_SpreadLight.insert(TempSpreadLight)
 					endif
 				endif
@@ -944,8 +944,7 @@ endfunction
 //~endfunction 0
 
 function Voxel_JoinFace(CurrentBlockType, NeighbourBlockType)
-	if CurrentBlockType = 0 or NeighbourBlockType = 0 then exitfunction 0
-	if Voxel_Blocks.Attributes[CurrentBlockType-1].JoinFace = 0 then exitfunction 0
+    if CurrentBlockType = 0 or NeighbourBlockType = 0 then exitfunction 0
 //~    if Voxel_Blocks.Attributes[CurrentBlockType-1].JoinFace
 //~    	exitfunction (CurrentBlockType = NeighbourBlockType)
 //~    endif
@@ -1153,175 +1152,312 @@ function Voxel_GenerateSlabFaces(Object ref as MeshData,World ref as WorldData,L
 	CurrentBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ)
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY+1,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ  ))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ  ))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY+1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY+1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY+1,GlobalZ)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyZ0+sky00
+		skyA01=SkyLightValue+skyX0+skyZ1+sky01
+		skyA10=SkyLightValue+skyX1+skyZ0+sky10
+		skyA11=SkyLightValue+skyX1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY+1,GlobalZ)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
+		
+		blockA00=BlockLightValue+blockX0+blockZ0+block00
+		blockA01=BlockLightValue+blockX0+blockZ1+block01
+		blockA10=BlockLightValue+blockX1+blockZ0+block10
+		blockA11=BlockLightValue+blockX1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
 		Flipped=0
-		if A00+A10>A01+A11 then Flipped=1
-		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY+1,GlobalZ),Voxel_GetSunLight(World,GlobalX,LocalY+1,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceUp],LocalX,LocalY,LocalZ,FaceUp,A00,A01,A10,A11,Flipped,0,-8,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY-1,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ  ))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ  ))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY-1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY-1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY-1,GlobalZ)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyZ0+sky00
+		skyA01=SkyLightValue+skyX0+skyZ1+sky01
+		skyA10=SkyLightValue+skyX1+skyZ0+sky10
+		skyA11=SkyLightValue+skyX1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY-1,GlobalZ)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY-1,GlobalZ),Voxel_GetSunLight(World,GlobalX,LocalY-1,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockX0+blockZ0+block00
+		blockA01=BlockLightValue+blockX0+blockZ1+block01
+		blockA10=BlockLightValue+blockX1+blockZ0+block10
+		blockA11=BlockLightValue+blockX1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceDown],LocalX,LocalY,LocalZ,FaceDown,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ+1)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ+1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ+1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY+1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY-1,GlobalZ+1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ+1)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
+		skyY0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ+1)
+		skyY1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyY0+sky00
+		skyA01=SkyLightValue+skyX0+skyY1+sky01
+		skyA10=SkyLightValue+skyX1+skyY0+sky10
+		skyA11=SkyLightValue+skyX1+skyY1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ+1)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
+		blockY0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ+1)
+		blockY1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
+		
+		blockA00=BlockLightValue+blockX0+blockY0+block00
+		blockA01=BlockLightValue+blockX0+blockY1+block01
+		blockA10=BlockLightValue+blockX1+blockY0+block10
+		blockA11=BlockLightValue+blockX1+blockY1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
 		Flipped=0
-		if A00+A10>A01+A11 then Flipped=1
-		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ+1),Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ+1))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceFront],LocalX,LocalY,LocalZ,FaceFront,A00,A01,A10,A11,Flipped,0,0,0,1,0.5,1,1,0.5)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ-1)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ-1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ-1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY+1,GlobalZ-1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY-1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ-1)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		skyY0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		skyY1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ-1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyY0+sky00
+		skyA01=SkyLightValue+skyX0+skyY1+sky01
+		skyA10=SkyLightValue+skyX1+skyY0+sky10
+		skyA11=SkyLightValue+skyX1+skyY1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ-1)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		blockY0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		blockY1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ-1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ-1),Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ-1))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockX0+blockY0+block00
+		blockA01=BlockLightValue+blockX0+blockY1+block01
+		blockA10=BlockLightValue+blockX1+blockY0+block10
+		blockA11=BlockLightValue+blockX1+blockY1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceBack],LocalX,LocalY,LocalZ,FaceBack,A00,A01,A10,A11,Flipped,0,0,0,1,0.5,1,1,0.5)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX+1,LocalY,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ+1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ-1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ  ))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ  ))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX+1,LocalY,GlobalZ)
+
+		skyY0=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		skyY1=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyY0+skyZ0+sky00
+		skyA01=SkyLightValue+skyY0+skyZ1+sky01
+		skyA10=SkyLightValue+skyY1+skyZ0+sky10
+		skyA11=SkyLightValue+skyY1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX+1,LocalY,GlobalZ)
+
+		blockY0=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		blockY1=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX+1,LocalY,GlobalZ),Voxel_GetSunLight(World,GlobalX+1,LocalY,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockY0+blockZ0+block00
+		blockA01=BlockLightValue+blockY0+blockZ1+block01
+		blockA10=BlockLightValue+blockY1+blockZ0+block10
+		blockA11=BlockLightValue+blockY1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceRight],LocalX,LocalY,LocalZ,FaceRight,A00,A01,A10,A11,Flipped,0,0,0,1,0.5,1,1,0.5)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX-1,LocalY,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ-1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ+1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ  ))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ  ))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX-1,LocalY,GlobalZ)
+
+		skyY0=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		skyY1=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyY0+skyZ0+sky00
+		skyA01=SkyLightValue+skyY0+skyZ1+sky01
+		skyA10=SkyLightValue+skyY1+skyZ0+sky10
+		skyA11=SkyLightValue+skyY1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX-1,LocalY,GlobalZ)
+
+		blockY0=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		blockY1=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX-1,LocalY,GlobalZ),Voxel_GetSunLight(World,GlobalX-1,LocalY,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
-		
+		blockA00=BlockLightValue+blockY0+blockZ0+block00
+		blockA01=BlockLightValue+blockY0+blockZ1+block01
+		blockA10=BlockLightValue+blockY1+blockZ0+block10
+		blockA11=BlockLightValue+blockY1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceLeft],LocalX,LocalY,LocalZ,FaceLeft,A00,A01,A10,A11,Flipped,0,0,0,1,0.5,1,1,0.5)
 	endif
 endfunction
@@ -1339,174 +1475,311 @@ function Voxel_GenerateCactusFaces(Object ref as MeshData,World ref as WorldData
 	CurrentBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ)
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY+1,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ  ))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ  ))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY+1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY+1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY+1,GlobalZ)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyZ0+sky00
+		skyA01=SkyLightValue+skyX0+skyZ1+sky01
+		skyA10=SkyLightValue+skyX1+skyZ0+sky10
+		skyA11=SkyLightValue+skyX1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY+1,GlobalZ)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
+		
+		blockA00=BlockLightValue+blockX0+blockZ0+block00
+		blockA01=BlockLightValue+blockX0+blockZ1+block01
+		blockA10=BlockLightValue+blockX1+blockZ0+block10
+		blockA11=BlockLightValue+blockX1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
 		Flipped=0
-		if A00+A10>A01+A11 then Flipped=1
-		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY+1,GlobalZ),Voxel_GetSunLight(World,GlobalX,LocalY+1,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
-		
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceUp],LocalX,LocalY,LocalZ,FaceUp,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY-1,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ  ))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ  ))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY-1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY-1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY-1,GlobalZ)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyZ0+sky00
+		skyA01=SkyLightValue+skyX0+skyZ1+sky01
+		skyA10=SkyLightValue+skyX1+skyZ0+sky10
+		skyA11=SkyLightValue+skyX1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY-1,GlobalZ)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY-1,GlobalZ),Voxel_GetSunLight(World,GlobalX,LocalY-1,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockX0+blockZ0+block00
+		blockA01=BlockLightValue+blockX0+blockZ1+block01
+		blockA10=BlockLightValue+blockX1+blockZ0+block10
+		blockA11=BlockLightValue+blockX1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceDown],LocalX,LocalY,LocalZ,FaceDown,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ+1)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ+1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ+1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY+1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY-1,GlobalZ+1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ+1)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
+		skyY0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ+1)
+		skyY1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyY0+sky00
+		skyA01=SkyLightValue+skyX0+skyY1+sky01
+		skyA10=SkyLightValue+skyX1+skyY0+sky10
+		skyA11=SkyLightValue+skyX1+skyY1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ+1)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
+		blockY0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ+1)
+		blockY1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
+		
+		blockA00=BlockLightValue+blockX0+blockY0+block00
+		blockA01=BlockLightValue+blockX0+blockY1+block01
+		blockA10=BlockLightValue+blockX1+blockY0+block10
+		blockA11=BlockLightValue+blockX1+blockY1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
 		Flipped=0
-		if A00+A10>A01+A11 then Flipped=1
-		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ+1),Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ+1))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceFront],LocalX,LocalY,LocalZ,FaceFront,A00,A01,A10,A11,Flipped,0,0,-1,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ-1)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ-1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ-1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY+1,GlobalZ-1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY-1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ-1)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		skyY0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		skyY1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ-1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyY0+sky00
+		skyA01=SkyLightValue+skyX0+skyY1+sky01
+		skyA10=SkyLightValue+skyX1+skyY0+sky10
+		skyA11=SkyLightValue+skyX1+skyY1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ-1)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		blockY0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		blockY1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ-1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ-1),Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ-1))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockX0+blockY0+block00
+		blockA01=BlockLightValue+blockX0+blockY1+block01
+		blockA10=BlockLightValue+blockX1+blockY0+block10
+		blockA11=BlockLightValue+blockX1+blockY1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceBack],LocalX,LocalY,LocalZ,FaceBack,A00,A01,A10,A11,Flipped,0,0,1,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX+1,LocalY,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ+1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ-1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ  ))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ  ))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX+1,LocalY,GlobalZ)
+
+		skyY0=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		skyY1=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyY0+skyZ0+sky00
+		skyA01=SkyLightValue+skyY0+skyZ1+sky01
+		skyA10=SkyLightValue+skyY1+skyZ0+sky10
+		skyA11=SkyLightValue+skyY1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX+1,LocalY,GlobalZ)
+
+		blockY0=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		blockY1=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX+1,LocalY,GlobalZ),Voxel_GetSunLight(World,GlobalX+1,LocalY,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockY0+blockZ0+block00
+		blockA01=BlockLightValue+blockY0+blockZ1+block01
+		blockA10=BlockLightValue+blockY1+blockZ0+block10
+		blockA11=BlockLightValue+blockY1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceRight],LocalX,LocalY,LocalZ,FaceRight,A00,A01,A10,A11,Flipped,-1,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX-1,LocalY,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ-1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ+1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ  ))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ  ))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX-1,LocalY,GlobalZ)
+
+		skyY0=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		skyY1=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyY0+skyZ0+sky00
+		skyA01=SkyLightValue+skyY0+skyZ1+sky01
+		skyA10=SkyLightValue+skyY1+skyZ0+sky10
+		skyA11=SkyLightValue+skyY1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX-1,LocalY,GlobalZ)
+
+		blockY0=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		blockY1=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX-1,LocalY,GlobalZ),Voxel_GetSunLight(World,GlobalX-1,LocalY,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockY0+blockZ0+block00
+		blockA01=BlockLightValue+blockY0+blockZ1+block01
+		blockA10=BlockLightValue+blockY1+blockZ0+block10
+		blockA11=BlockLightValue+blockY1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceLeft],LocalX,LocalY,LocalZ,FaceLeft,A00,A01,A10,A11,Flipped,1,0,0,1,1,1,1,1)
 	endif
@@ -1525,176 +1798,314 @@ function Voxel_GenerateCubeFaces(Object ref as MeshData,World ref as WorldData,L
 	CurrentBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ)
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY+1,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ  ))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ  ))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY+1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY+1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY+1,GlobalZ)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyZ0+sky00
+		skyA01=SkyLightValue+skyX0+skyZ1+sky01
+		skyA10=SkyLightValue+skyX1+skyZ0+sky10
+		skyA11=SkyLightValue+skyX1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY+1,GlobalZ)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
+		
+		blockA00=BlockLightValue+blockX0+blockZ0+block00
+		blockA01=BlockLightValue+blockX0+blockZ1+block01
+		blockA10=BlockLightValue+blockX1+blockZ0+block10
+		blockA11=BlockLightValue+blockX1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
 		Flipped=0
-		if A00+A10>A01+A11 then Flipped=1
-		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY+1,GlobalZ),Voxel_GetSunLight(World,GlobalX,LocalY+1,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceUp],LocalX,LocalY,LocalZ,FaceUp,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY-1,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ  ))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ  ))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY-1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX,  LocalY-1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY-1,GlobalZ)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyZ0+sky00
+		skyA01=SkyLightValue+skyX0+skyZ1+sky01
+		skyA10=SkyLightValue+skyX1+skyZ0+sky10
+		skyA11=SkyLightValue+skyX1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY-1,GlobalZ)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY-1,GlobalZ),Voxel_GetSunLight(World,GlobalX,LocalY-1,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockX0+blockZ0+block00
+		blockA01=BlockLightValue+blockX0+blockZ1+block01
+		blockA10=BlockLightValue+blockX1+blockZ0+block10
+		blockA11=BlockLightValue+blockX1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceDown],LocalX,LocalY,LocalZ,FaceDown,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ+1)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ+1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ+1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY+1,GlobalZ+1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY-1,GlobalZ+1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ+1)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
+		skyY0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ+1)
+		skyY1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyY0+sky00
+		skyA01=SkyLightValue+skyX0+skyY1+sky01
+		skyA10=SkyLightValue+skyX1+skyY0+sky10
+		skyA11=SkyLightValue+skyX1+skyY1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ+1)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
+		blockY0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ+1)
+		blockY1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ+1)
 		
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
+		
+		blockA00=BlockLightValue+blockX0+blockY0+block00
+		blockA01=BlockLightValue+blockX0+blockY1+block01
+		blockA10=BlockLightValue+blockX1+blockY0+block10
+		blockA11=BlockLightValue+blockX1+blockY1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
 		Flipped=0
-		if A00+A10>A01+A11 then Flipped=1
-		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ+1),Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ+1))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceFront],LocalX,LocalY,LocalZ,FaceFront,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX,LocalY,GlobalZ-1)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ-1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ-1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY+1,GlobalZ-1))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX  ,LocalY-1,GlobalZ-1))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ-1)
+
+		skyX0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		skyX1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		skyY0=Voxel_GetSunLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		skyY1=Voxel_GetSunLight(World,GlobalX,  LocalY+1,GlobalZ-1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyX0+skyY0+sky00
+		skyA01=SkyLightValue+skyX0+skyY1+sky01
+		skyA10=SkyLightValue+skyX1+skyY0+sky10
+		skyA11=SkyLightValue+skyX1+skyY1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ-1)
+
+		blockX0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		blockX1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		blockY0=Voxel_GetBlockLight(World,GlobalX,  LocalY-1,GlobalZ-1)
+		blockY1=Voxel_GetBlockLight(World,GlobalX,  LocalY+1,GlobalZ-1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX,LocalY,GlobalZ-1),Voxel_GetSunLight(World,GlobalX,LocalY,GlobalZ-1))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockX0+blockY0+block00
+		blockA01=BlockLightValue+blockX0+blockY1+block01
+		blockA10=BlockLightValue+blockX1+blockY0+block10
+		blockA11=BlockLightValue+blockX1+blockY1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
 		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceBack],LocalX,LocalY,LocalZ,FaceBack,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX+1,LocalY,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ+1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY  ,GlobalZ-1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ  ))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ  ))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX+1,LocalY,GlobalZ)
+
+		skyY0=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		skyY1=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ+1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY+1,GlobalZ-1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ+1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX+1,LocalY-1,GlobalZ-1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyY0+skyZ0+sky00
+		skyA01=SkyLightValue+skyY0+skyZ1+sky01
+		skyA10=SkyLightValue+skyY1+skyZ0+sky10
+		skyA11=SkyLightValue+skyY1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX+1,LocalY,GlobalZ)
+
+		blockY0=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ  )
+		blockY1=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX+1,LocalY  ,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX+1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX+1,LocalY+1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX+1,LocalY,GlobalZ),Voxel_GetSunLight(World,GlobalX+1,LocalY,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockY0+blockZ0+block00
+		blockA01=BlockLightValue+blockY0+blockZ1+block01
+		blockA10=BlockLightValue+blockY1+blockZ0+block10
+		blockA11=BlockLightValue+blockY1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
-		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceLeft],LocalX,LocalY,LocalZ,FaceRight,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
+		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceRight],LocalX,LocalY,LocalZ,FaceRight,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 	
 	NeighbourBlockType=Voxel_GetBlockType(World,GlobalX-1,LocalY,GlobalZ)
 	if not(Voxel_IsOpaqueBlock(NeighbourBlockType) or Voxel_JoinFace(CurrentBlockType,NeighbourBlockType))
-		side00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ-1))=0)
-		side01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY  ,GlobalZ+1))=0)
-		side10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ  ))=0)
-		side11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ  ))=0)
+		SkyLightValue=Voxel_GetSunLight(World,GlobalX-1,LocalY,GlobalZ)
+
+		skyY0=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		skyY1=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		skyZ0=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		skyZ1=Voxel_GetSunLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
 		
-		corner00=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ-1))=0)
-		corner01=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY+1,GlobalZ+1))=0)
-		corner10=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ-1))=0)
-		corner11=(Voxel_IsOpaqueBlock(Voxel_GetBlockType(World,GlobalX-1,LocalY-1,GlobalZ+1))=0)
+		sky00=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		sky01=Voxel_GetSunLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		sky10=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		sky11=Voxel_GetSunLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
 		
-		A00=Voxel_GetVertexAO(side10,side00,corner00)
-		A01=Voxel_GetVertexAO(side10,side01,corner01)
-		A10=Voxel_GetVertexAO(side11,side01,corner11)
-		A11=Voxel_GetVertexAO(side11,side00,corner10)
+		skyA00=SkyLightValue+skyY0+skyZ0+sky00
+		skyA01=SkyLightValue+skyY0+skyZ1+sky01
+		skyA10=SkyLightValue+skyY1+skyZ0+sky10
+		skyA11=SkyLightValue+skyY1+skyZ1+sky11
+
+		BlockLightValue=Voxel_GetBlockLight(World,GlobalX-1,LocalY,GlobalZ)
+
+		blockY0=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ  )
+		blockY1=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ  )
+		blockZ0=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ-1)
+		blockZ1=Voxel_GetBlockLight(World,GlobalX-1,LocalY  ,GlobalZ+1)
 		
-		Flipped=1
-		if A00+A10<A01+A11 then Flipped=0
+		block00=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ-1)
+		block01=Voxel_GetBlockLight(World,GlobalX-1,LocalY-1,GlobalZ+1)
+		block10=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ-1)
+		block11=Voxel_GetBlockLight(World,GlobalX-1,LocalY+1,GlobalZ+1)
 		
-		LightValue=Core_Max(Voxel_GetBlockLight(World,GlobalX-1,LocalY,GlobalZ),Voxel_GetSunLight(World,GlobalX-1,LocalY,GlobalZ))/15.0*255
-		A00=LightValue-A00
-		A01=LightValue-A01
-		A10=LightValue-A10
-		A11=LightValue-A11
+		blockA00=BlockLightValue+blockY0+blockZ0+block00
+		blockA01=BlockLightValue+blockY0+blockZ1+block01
+		blockA10=BlockLightValue+blockY1+blockZ0+block10
+		blockA11=BlockLightValue+blockY1+blockZ1+block11
+
+		A00=Core_Max(skyA00,blockA00)
+		A01=Core_Max(skyA01,blockA01)
+		A10=Core_Max(skyA10,blockA10)
+		A11=Core_Max(skyA11,blockA11)
+
+		Flipped=0
+		if A00+A11>A01+A10 then Flipped=1
+
+		A00=(A00/4)/15.0*255
+		A01=(A01/4)/15.0*255
+		A10=(A10/4)/15.0*255
+		A11=(A11/4)/15.0*255
 		
-		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceRight],LocalX,LocalY,LocalZ,FaceLeft,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
+		Voxel_AddFaceToObject(Object,Voxel_TempSubimages[FaceLeft],LocalX,LocalY,LocalZ,FaceLeft,A00,A01,A10,A11,Flipped,0,0,0,1,1,1,1,1)
 	endif
 endfunction
 
@@ -1737,10 +2148,10 @@ function Voxel_AddFaceToObject(Object ref as MeshData,Subimage ref as SubimageDa
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[2],Left#,Bottom#)
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[3],Right#,Bottom#)
 			
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A00,A00,A00,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A11,A11,A11,255)
 			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A01,A01,A01,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A10,A10,A10,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A11,A11,A11,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A00,A00,A00,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A10,A10,A10,255)
 		
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[0],1,0,0)
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[1],1,0,0)
@@ -1772,10 +2183,10 @@ function Voxel_AddFaceToObject(Object ref as MeshData,Subimage ref as SubimageDa
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[2],Left#,Bottom#)
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[3],Right#,Bottom#)
 			
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A00,A00,A00,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A01,A01,A01,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A01,A01,A01,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A11,A11,A11,255)
 			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A10,A10,A10,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A11,A11,A11,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A00,A00,A00,255)
 		
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[0],1,0,0)
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[1],1,0,0)
@@ -1807,10 +2218,10 @@ function Voxel_AddFaceToObject(Object ref as MeshData,Subimage ref as SubimageDa
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[2],Left#,Bottom#)
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[3],Right#,Bottom#)
 			
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A00,A00,A00,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A01,A01,A01,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A01,A01,A01,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A11,A11,A11,255)
 			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A10,A10,A10,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A11,A11,A11,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A00,A00,A00,255)
 			
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[0],-1,0,0)
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[1],-1,0,0)
@@ -1842,10 +2253,10 @@ function Voxel_AddFaceToObject(Object ref as MeshData,Subimage ref as SubimageDa
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[2],Left#,Bottom#)
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[3],Right#,Bottom#)
 			
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A00,A00,A00,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A11,A11,A11,255)
 			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A01,A01,A01,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A10,A10,A10,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A11,A11,A11,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A00,A00,A00,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A10,A10,A10,255)
 		
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[0],1,0,0)
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[1],1,0,0)
@@ -1877,10 +2288,10 @@ function Voxel_AddFaceToObject(Object ref as MeshData,Subimage ref as SubimageDa
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[2],Left#,Bottom#)
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[3],Right#,Bottom#)
 			
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A00,A00,A00,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A01,A01,A01,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A10,A10,A10,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A11,A11,A11,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A11,A11,A11,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A10,A10,A10,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A00,A00,A00,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A01,A01,A01,255)
 		
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[0],0,0,1)
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[1],0,0,1)
@@ -1912,10 +2323,10 @@ function Voxel_AddFaceToObject(Object ref as MeshData,Subimage ref as SubimageDa
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[2],Left#,Bottom#)
 			Voxel_SetObjectFaceUV(Voxel_TempVertex[3],Right#,Bottom#)
 			
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A00,A00,A00,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A01,A01,A01,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A10,A10,A10,255)
-			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A11,A11,A11,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[0],A10,A10,A10,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[1],A11,A11,A11,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[2],A01,A01,A01,255)
+			Voxel_SetObjectFaceColor(Voxel_TempVertex[3],A00,A00,A00,255)
 		
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[0],0,0,-1)
 //~			Voxel_SetObjectFaceTangent(Voxel_TempVertex[1],0,0,-1)
